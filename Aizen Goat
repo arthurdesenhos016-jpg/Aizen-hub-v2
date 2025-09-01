@@ -1,0 +1,193 @@
+--// Carregar Rayfield
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local hrp = character:WaitForChild("HumanoidRootPart")
+
+--// Variáveis
+local isFly, isNoclip, isESP, isBring = false, false, false, false
+local flyBodyVelocity
+local flyVelocityGoal = Vector3.zero
+local originalPositions = {}
+
+--// Funções
+local function toggleFly(state)
+    isFly = state
+    if state then
+        if not flyBodyVelocity then
+            flyBodyVelocity = Instance.new("BodyVelocity")
+            flyBodyVelocity.MaxForce = Vector3.new(1e5,1e5,1e5)
+            flyBodyVelocity.Velocity = Vector3.zero
+            flyBodyVelocity.Parent = hrp
+        end
+    else
+        if flyBodyVelocity then flyBodyVelocity:Destroy() flyBodyVelocity=nil end
+        flyVelocityGoal = Vector3.zero
+    end
+end
+
+local function toggleNoclip(state)
+    isNoclip = state
+end
+
+local function toggleESP(state)
+    isESP = state
+    if not state then
+        for _,v in pairs(workspace:GetDescendants()) do
+            if v:IsA("BillboardGui") and v.Name == "ESP_TAG" then
+                v:Destroy()
+            end
+        end
+    end
+end
+
+local function bringPlayersFunc(state)
+    isBring = state
+    if state then
+        for _,plr in pairs(Players:GetPlayers()) do
+            if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+                plr.Character.HumanoidRootPart.CFrame = hrp.CFrame
+            end
+        end
+    end
+end
+
+--// Loop principal
+RunService.RenderStepped:Connect(function()
+    -- Fly movement
+    if isFly and flyBodyVelocity then
+        local moveVec = Vector3.zero
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveVec = moveVec + hrp.CFrame.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveVec = moveVec - hrp.CFrame.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveVec = moveVec - hrp.CFrame.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveVec = moveVec + hrp.CFrame.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveVec = moveVec + Vector3.new(0,1,0) end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then moveVec = moveVec - Vector3.new(0,1,0) end
+
+        local speed = tonumber(Rayfield.Flags.FlySpeed.CurrentValue) or 50
+        flyVelocityGoal = (moveVec.Magnitude>0) and moveVec.Unit*speed or Vector3.zero
+        flyBodyVelocity.Velocity = flyVelocityGoal
+    end
+
+    -- Noclip
+    if isNoclip and character then
+        for _,part in pairs(character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+            end
+        end
+    end
+
+    -- ESP
+    if isESP then
+        for _,plr in pairs(Players:GetPlayers()) do
+            if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("Head") then
+                if not plr.Character.Head:FindFirstChild("ESP_TAG") then
+                    local esp = Instance.new("BillboardGui", plr.Character.Head)
+                    esp.Name = "ESP_TAG"
+                    esp.Size = UDim2.new(0,200,0,50)
+                    esp.AlwaysOnTop = true
+                    esp.StudsOffset = Vector3.new(0,2,0)
+                    local text = Instance.new("TextLabel",esp)
+                    text.Size = UDim2.new(1,0,1,0)
+                    text.BackgroundTransparency = 1
+                    text.TextColor3 = Color3.fromRGB(0,255,0)
+                    text.TextScaled = true
+                    text.Text = plr.Name
+                end
+            end
+        end
+    end
+end)
+
+--// Janela Principal
+local Window = Rayfield:CreateWindow({
+    Name = "Aizen Hub",
+    LoadingTitle = "Carregando...",
+    LoadingSubtitle = "Feito no Rayfield",
+    ConfigurationSaving = {Enabled=true, FolderName=nil, FileName="AizenHub"}
+})
+
+--// Aba Main
+local MainTab = Window:CreateTab("Main",4483362458)
+
+-- Speed
+local speedInput = MainTab:CreateInput({Name="Speed Value",PlaceholderText="Ex: 50",RemoveTextAfterFocusLost=false})
+MainTab:CreateToggle({Name="Speed",CurrentValue=false,Callback=function(state)
+    local val = tonumber(speedInput.CurrentValue) or humanoid.WalkSpeed
+    humanoid.WalkSpeed = state and val or 16
+end})
+speedInput.Callback = function(val)
+    if Rayfield.Flags.Speed then humanoid.WalkSpeed = tonumber(val) or humanoid.WalkSpeed end
+end
+
+-- Jump
+local jumpInput = MainTab:CreateInput({Name="Jump Value",PlaceholderText="Ex: 50",RemoveTextAfterFocusLost=false})
+MainTab:CreateToggle({Name="Jump",CurrentValue=false,Callback=function(state)
+    local val = tonumber(jumpInput.CurrentValue) or humanoid.JumpPower
+    humanoid.JumpPower = state and val or 50
+end})
+jumpInput.Callback = function(val)
+    if Rayfield.Flags.Jump then humanoid.JumpPower = tonumber(val) or humanoid.JumpPower end
+end
+
+-- Fly
+MainTab:CreateInput({Name="Fly Speed",PlaceholderText="50",RemoveTextAfterFocusLost=false,Flag="FlySpeed"})
+MainTab:CreateToggle({Name="Fly",CurrentValue=false,Flag="FlyToggle",Callback=function(state)
+    toggleFly(state)
+end})
+
+-- Noclip
+MainTab:CreateToggle({Name="NoClip",CurrentValue=false,Callback=function(state) toggleNoclip(state) end})
+
+-- ESP
+MainTab:CreateToggle({Name="ESP",CurrentValue=false,Callback=function(state) toggleESP(state) end})
+
+-- Bring Players (corrigido)
+MainTab:CreateToggle({Name="Bring Players",CurrentValue=false,Callback=function(state)
+    bringPlayersFunc(state)
+end})
+
+--// Aba Scripts
+local ScriptsTab = Window:CreateTab("Scripts",4483362458)
+
+-- SearchBox
+local SearchBox = ScriptsTab:CreateInput({Name="Search Script",PlaceholderText="Digite o nome...",RemoveTextAfterFocusLost=false,Flag="SearchBox"})
+
+-- Lista de scripts
+local scriptsList = {
+    {Name="Hitbox Expander", URL="https://rawscripts.net/raw/Universal-Script-Hitbox-expand-player-49723"},
+    {Name="Infinite Yield", URL="https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"},
+    {Name="Dex Explorer", URL="https://raw.githubusercontent.com/peyton2465/Dex/master/out.lua"},
+    {Name="Forsaken Auto Block", URL="https://raw.githubusercontent.com/skibidi399/Auto-block-script/refs/heads/main/FINAL%20AUTO%20BLOCK"},
+    {Name="Vims Hub", URL="https://raw.githubusercontent.com/zylosboom/ViMHub/refs/heads/main/vimHub.lau"},
+    {Name="Shaders", URL="https://raw.githubusercontent.com/randomstring0/pshade-ultimate/refs/heads/main/src/cd.lua"},
+    {Name="Yahrm", URL="https://rawscripts.net/raw/Universal-Script-YARHM-12403"},
+    {Name="Demonfall", URL="https://rawscripts.net/raw/Demonfall-DUPE-Solixhub-OP-Auto-Farms-Solara-Supported-25087"},
+    {Name="Steal a Brainrot", URL="https://raw.githubusercontent.com/tienkhanh1/spicy/main/Chilli.lua"},
+    {Name="99 Nights in Florest", URL="https://raw.githubusercontent.com/H4xScripts/Loader/refs/heads/main/loader.lua"}
+}
+
+local scriptButtons = {}
+
+for _, info in pairs(scriptsList) do
+    local btn = ScriptsTab:CreateButton({
+        Name = info.Name,
+        Callback = function()
+            loadstring(game:HttpGet(info.URL))()
+        end
+    })
+    table.insert(scriptButtons, btn)
+end
+
+-- SearchBox funcional
+SearchBox.Callback = function(txt)
+    for _,btn in pairs(scriptButtons) do
+        btn.Visible = string.find(string.lower(btn.Name), string.lower(txt)) ~= nil
+    end
+end
